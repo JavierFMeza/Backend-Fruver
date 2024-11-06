@@ -48,6 +48,85 @@ app.get('/api/inventario', (req, res) => {
   });
 });
 
+// Ruta para optener informacion del inventario segun la busqueda
+app.get('/api/inventario', (req, res) => {
+  const searchTerm = req.query.search || ''; // Obtén el término de búsqueda de los parámetros de la URL
+  
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      DATE(Lote.fechaEntrada) AS fechaEntrada,
+      Usuario.nombre AS nombreUsuario,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto
+    FROM Lote
+    JOIN Usuario ON Lote.idUsuario = Usuario.id
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE Lote.codigo LIKE ? OR Productos.nombre LIKE ?;
+  `;
+
+  // Pasa el término de búsqueda para que busque en ambas columnas
+  db.query(sql, [`%${searchTerm}%`, `%${searchTerm}%`], (err, results) => {
+    if (err) {
+      return res.status(500).send('Error al obtener inventario');
+    }
+    res.json(results);
+  });
+});
+
+//Ruta para realizar cambios en el inventario
+// Ruta para actualizar un lote específico (actualizar el idProductos y cantidadLote)
+app.put('/api/lotes/:codigoLote', (req, res) => {
+  const codigoLote = req.params.codigoLote;
+  const { idProductos, cantidadLote } = req.body;
+
+  const sql = `
+    UPDATE Lote
+    SET idProductos = ?, cantidad = ?
+    WHERE codigo = ?;
+  `;
+
+  db.query(sql, [idProductos, cantidadLote, codigoLote], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al actualizar el lote.' });
+    }
+    res.json({ success: true, message: 'Lote actualizado exitosamente.' });
+  });
+});
+
+// Ruta para eliminar un lote específico
+app.delete('/api/lotes/:codigoLote', (req, res) => {
+  const codigoLote = req.params.codigoLote;
+
+  const sql = 'DELETE FROM Lote WHERE codigo = ?';
+
+  db.query(sql, [codigoLote], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al eliminar el lote.' });
+    }
+    res.json({ success: true, message: 'Lote eliminado exitosamente.' });
+  });
+});
+
+// Ruta para obtener el ID de un producto dado su nombre
+app.get('/api/productos/id/:nombre', (req, res) => {
+  const nombreProducto = req.params.nombre;
+
+  const sql = 'SELECT id FROM Productos WHERE nombre = ?';
+
+  db.query(sql, [nombreProducto], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener el ID del producto.' });
+    }
+    if (results.length > 0) {
+      res.json({ id: results[0].id });
+    } else {
+      res.status(404).json({ message: 'Producto no encontrado.' });
+    }
+  });
+});
+
 // Ruta para añadir un nuevo producto
 app.post('/api/products', (req, res) => {
   const { nombre, precio, diasParaVencimiento } = req.body;
@@ -101,6 +180,7 @@ app.get('/api/usuarios', (req, res) => {
     res.json(results);
   });
 });
+
 
 
 
