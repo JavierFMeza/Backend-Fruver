@@ -24,7 +24,7 @@ db.connect((err) => {
   console.log('Conectado a la base de datos MySQL');
 });
 
-
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta para obtener información del inventario
 app.get('/api/inventario', (req, res) => {
   const sql = `
@@ -74,7 +74,7 @@ app.get('/api/inventario', (req, res) => {
     res.json(results);
   });
 });
-
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 //Ruta para realizar cambios en el inventario
 // Ruta para actualizar un lote específico (actualizar el idProductos y cantidadLote)
 app.put('/api/lotes/:codigoLote', (req, res) => {
@@ -127,6 +127,7 @@ app.get('/api/productos/id/:nombre', (req, res) => {
   });
 });
 
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta para añadir un nuevo producto
 app.post('/api/products', (req, res) => {
   const { nombre, precio, diasParaVencimiento } = req.body;
@@ -142,7 +143,7 @@ app.post('/api/products', (req, res) => {
   });
 });
 
-
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta para añadir un nuevo lote
 app.post('/api/lotes', (req, res) => {
   const { fechaEntrada, idUsuario, idProductos, cantidad } = req.body;
@@ -157,6 +158,7 @@ app.post('/api/lotes', (req, res) => {
   });
 });
 
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta para obtener todos los productos
 app.get('/api/productos', (req, res) => {
   const sql = 'SELECT * FROM Productos';
@@ -181,9 +183,150 @@ app.get('/api/usuarios', (req, res) => {
   });
 });
 
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
+// Ruta para obtener lotes próximos a vencer en 3 
+app.get('/api/productos/por_vencer', (req, res) => {
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      Lote.fechaEntrada AS fechaEntrada,
+      Usuario.nombre AS nombreUsuario,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto,
+      Productos.diasParaVencimiento AS diasParaVencimiento,
+      (Productos.diasParaVencimiento - DATEDIFF(CURDATE(), Lote.fechaEntrada)) AS diasRestantes
+    FROM Lote
+    JOIN Usuario ON Lote.idUsuario = Usuario.id
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE 
+      (Productos.diasParaVencimiento - DATEDIFF(CURDATE(), Lote.fechaEntrada)) BETWEEN 0 AND 3;
+  `;
 
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener productos por vencer.' });
+    }
+    res.json(results);
+  });
+});
 
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
+// Ruta para obtener productos por acabarse
+app.get('/api/productos/por_acabarse', (req, res) => {
+  const cantidadMinima = 10; // Define el umbral de cantidad baja
 
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      Lote.fechaEntrada AS fechaEntrada,
+      Usuario.nombre AS nombreUsuario,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto
+    FROM Lote
+    JOIN Usuario ON Lote.idUsuario = Usuario.id
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE Lote.cantidad <= ?;
+  `;
+
+  db.query(sql, [cantidadMinima], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener productos por acabarse.' });
+    }
+    res.json(results);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
+// Ruta para obtener productos ya expirados
+app.get('/api/productos/expirados', (req, res) => {
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      Lote.fechaEntrada AS fechaEntrada,
+      Usuario.nombre AS nombreUsuario,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto,
+      Productos.diasParaVencimiento AS diasParaVencimiento,
+      DATEDIFF(CURDATE(), Lote.fechaEntrada) - Productos.diasParaVencimiento AS diasDesdeVencimiento
+    FROM Lote
+    JOIN Usuario ON Lote.idUsuario = Usuario.id
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE DATEDIFF(CURDATE(), Lote.fechaEntrada) > Productos.diasParaVencimiento;
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener productos expirados.' });
+    }
+    res.json(results);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
+// Ruta para obtener los 5 productos recientemente añadidos
+app.get('/api/productos/recientes', (req, res) => {
+  const sql = 'SELECT * FROM Productos ORDER BY id DESC LIMIT 5';
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener productos recientes.' });
+    }
+    res.json(results);
+  });
+});
+
+// Ruta para obtener los 5 lotes recientemente añadidos
+app.get('/api/lotes/recientes', (req, res) => {
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      Lote.fechaEntrada AS fechaEntrada,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto
+    FROM Lote
+    JOIN Productos ON Lote.idProductos = Productos.id
+    ORDER BY Lote.codigo DESC
+    LIMIT 5
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener lotes recientes.' });
+    }
+    res.json(results);
+  });
+});
+
+// Ruta para obtener los 5 productos expirados más recientes
+app.get('/api/productos/expirados/recientes', (req, res) => {
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      Lote.fechaEntrada AS fechaEntrada,
+      Usuario.nombre AS nombreUsuario,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto,
+      Productos.diasParaVencimiento AS diasParaVencimiento,
+      (DATEDIFF(CURDATE(), Lote.fechaEntrada) - Productos.diasParaVencimiento) AS diasDesdeVencimiento
+    FROM Lote
+    JOIN Usuario ON Lote.idUsuario = Usuario.id
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE DATEDIFF(CURDATE(), Lote.fechaEntrada) > Productos.diasParaVencimiento
+    ORDER BY Lote.codigo DESC
+    LIMIT 5
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener productos expirados.' });
+    }
+    res.json(results);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta raíz para evitar el error de "Cannot GET /"
 app.get('/', (req, res) => {
   res.send('Bienvenido a la API de Fruver');
