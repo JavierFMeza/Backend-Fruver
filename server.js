@@ -238,6 +238,36 @@ app.get('/api/productos/por_acabarse', (req, res) => {
   });
 });
 
+// Ruta para obtener productos por acabarse con búsqueda
+app.get('/api/productos/por_acabarse2', (req, res) => {
+  const cantidadMinima = 10; // Define el umbral de cantidad baja
+  const searchTerm = req.query.search || ''; // Término de búsqueda opcional
+
+  const sql = `
+    SELECT 
+      Lote.codigo AS codigoLote,
+      Lote.cantidad AS cantidadLote,
+      Lote.fechaEntrada AS fechaEntrada,
+      Usuario.nombre AS nombreUsuario,
+      Productos.nombre AS nombreProducto,
+      Productos.precio AS precioProducto
+    FROM Lote
+    JOIN Usuario ON Lote.idUsuario = Usuario.id
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE Lote.cantidad <= ? 
+      AND (Productos.nombre LIKE ? OR Usuario.nombre LIKE ?);
+  `;
+
+  // Pasa los parámetros al query
+  db.query(sql, [cantidadMinima, `%${searchTerm}%`, `%${searchTerm}%`], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener productos por acabarse.' });
+    }
+    res.json(results);
+  });
+});
+
+
 /* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta para obtener productos ya expirados
 app.get('/api/productos/expirados', (req, res) => {
@@ -321,6 +351,62 @@ app.get('/api/productos/expirados/recientes', (req, res) => {
   db.query(sql, (err, results) => {
     if (err) {
       return res.status(500).json({ message: 'Error al obtener productos expirados.' });
+    }
+    res.json(results);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
+// Ruta para obtener productos con mayor movimiento
+app.get('/api/reportes/productos_mas_movidos', (req, res) => {
+  const sql = `
+    SELECT 
+        Productos.nombre AS nombreProducto,
+        Productos.precio AS precioProducto,
+        SUM(Lote.cantidad) AS totalCantidad,
+        Usuario.nombre AS usuarioPrincipal
+    FROM 
+        Lote
+    INNER JOIN 
+        Productos ON Lote.idProductos = Productos.id
+    LEFT JOIN 
+        Usuario ON Lote.idUsuario = Usuario.id
+    GROUP BY 
+        Productos.id, Usuario.id
+    ORDER BY 
+        totalCantidad DESC
+    LIMIT 5;
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al generar reporte de productos más movidos.' });
+    }
+    res.json(results);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
+// Ruta para obtener usuarios con más lotes ingresados
+app.get('/api/reportes/usuarios_mas_lotes', (req, res) => {
+  const sql = `
+    SELECT 
+        Usuario.nombre AS nombreUsuario,
+        COUNT(Lote.codigo) AS totalLotesIngresados
+    FROM 
+        Lote
+    INNER JOIN 
+        Usuario ON Lote.idUsuario = Usuario.id
+    GROUP BY 
+        Usuario.id
+    ORDER BY 
+        totalLotesIngresados DESC
+    LIMIT 5;
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al generar reporte de usuarios con más lotes.' });
     }
     res.json(results);
   });
