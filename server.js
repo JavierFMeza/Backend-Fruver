@@ -413,6 +413,71 @@ app.get('/api/reportes/usuarios_mas_lotes', (req, res) => {
 });
 
 /* ---------------------------------------------------------------------------------------------------------------------------------------- */
+
+app.get('/api/notificaciones', (req, res) => {
+    const queries = {
+      masCercano: `
+    SELECT 
+        Productos.nombre AS producto, 
+        MIN(DATEDIFF(DATE_ADD(Lote.fechaEntrada, INTERVAL Productos.diasParaVencimiento DAY), CURDATE())) AS diasRestantes
+    FROM Lote
+    JOIN Productos ON Lote.idProductos = Productos.id
+    WHERE DATEDIFF(DATE_ADD(Lote.fechaEntrada, INTERVAL Productos.diasParaVencimiento DAY), CURDATE()) > 0
+    GROUP BY Productos.nombre
+    ORDER BY diasRestantes ASC
+    LIMIT 1;
+  `,
+    expiraHoy: `
+      SELECT 
+          Productos.nombre AS producto
+      FROM Lote
+      JOIN Productos ON Lote.idProductos = Productos.id
+      WHERE DATEDIFF(CURDATE(), Lote.fechaEntrada) = Productos.diasParaVencimiento;
+    `,
+    lotesHoy: `
+      SELECT 
+          COUNT(*) AS lotesHoy 
+      FROM Lote 
+      WHERE DATE(Lote.fechaEntrada) = CURDATE();
+    `
+  };
+
+  const results = {};
+  db.query(queries.masCercano, (err, result) => {
+    if (err) {
+      console.error('Error en masCercano:', err);
+      return res.status(500).send('Error en masCercano');
+    }
+    if (result[0] && result[0].producto) {
+      results.masCercano = result[0];
+    }
+
+    db.query(queries.expiraHoy, (err, result) => {
+      if (err) {
+        console.error('Error en expiraHoy:', err);
+        return res.status(500).send('Error en expiraHoy');
+      }
+      if (result.length > 0) {
+        results.expiraHoy = result[0];
+      }
+
+      db.query(queries.lotesHoy, (err, result) => {
+        if (err) {
+          console.error('Error en lotesHoy:', err);
+          return res.status(500).send('Error en lotesHoy');
+        }
+        if (result[0].lotesHoy > 0) {
+          results.lotesHoy = result[0];
+        }
+        res.json(results);
+      });
+    });
+  });
+});
+
+
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------- */
 // Ruta raíz para evitar el error de "Cannot GET /"
 app.get('/', (req, res) => {
   res.send('Bienvenido a la API de Fruver');
